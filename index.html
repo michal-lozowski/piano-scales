@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scale Net</title>
+  <title>Keys Scales</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -180,7 +180,7 @@
 <body>
   <div class="stage">
     <header>
-      <h1>Scale Net</h1>
+      <h1>Keys Scales</h1>
       <div class="readout">
         <div class="scale-name" id="scaleName">C major</div>
         <div class="key-sig" id="keySig">no key signature</div>
@@ -191,6 +191,10 @@
       <div class="mode" role="group" aria-label="Scale type">
         <button type="button" id="btnMajor" aria-pressed="true">Major</button>
         <button type="button" id="btnMinor" aria-pressed="false">Minor</button>
+      </div>
+      <div class="mode" role="group" aria-label="Enharmonic spelling">
+        <button type="button" id="btnSharps" aria-pressed="true" title="Spell with sharps">♯</button>
+        <button type="button" id="btnFlats" aria-pressed="false" title="Spell with flats">♭</button>
       </div>
       <p class="hint">Drag or ← →</p>
     </div>
@@ -240,7 +244,16 @@
       0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: 7,
       5: -1, 10: -2, 3: -3, 8: -4,
     };
-    const MAJOR_FLAT_SIG = { 1: -5, 6: -6, 5: -1, 10: -2, 3: -3, 8: -4 };
+    // Enharmonic flat-side signatures (major) by pitch class
+    const MAJOR_FLAT_SIG = {
+      0: 0, 5: -1, 10: -2, 3: -3, 8: -4, 1: -5, 6: -6, 11: -7,
+      4: -8, 9: -9, 2: -10, 7: -11,
+    };
+    // Enharmonic sharp-side signatures (major) by pitch class
+    const MAJOR_SHARP_SIG = {
+      0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: 7,
+      8: 8, 3: 9, 10: 10, 5: 11,
+    };
     const MAJOR_USE_FLATS = new Set([5, 10, 3, 8, 1, 6]);
     const MINOR_USE_FLATS = new Set([2, 7, 0, 5, 10, 3, 8]);
 
@@ -248,6 +261,8 @@
     const FLAT_ORDER  = ["B♭", "E♭", "A♭", "D♭", "G♭", "C♭", "F♭"];
 
     let mode = "major";
+    /** User spelling: false = sharps, true = flats */
+    let spellFlats = false;
     /** Absolute index of the first grid note (tonic). Grid only extends right from here. */
     let firstNote = ZONE_START;
     let keyCenters = [];
@@ -263,14 +278,30 @@
     const notesRow = document.getElementById("notesRow");
     const btnMajor = document.getElementById("btnMajor");
     const btnMinor = document.getElementById("btnMinor");
+    const btnSharps = document.getElementById("btnSharps");
+    const btnFlats = document.getElementById("btnFlats");
 
     function rootPc() {
       return firstNote % 12;
     }
 
-    function prefersFlats() {
-      const pc = rootPc();
+    function conventionalFlats(pc) {
       return mode === "major" ? MAJOR_USE_FLATS.has(pc) : MINOR_USE_FLATS.has(pc);
+    }
+
+    function prefersFlats() {
+      return spellFlats;
+    }
+
+    function syncEnharmonicButtons() {
+      btnSharps.setAttribute("aria-pressed", String(!spellFlats));
+      btnFlats.setAttribute("aria-pressed", String(spellFlats));
+    }
+
+    function setSpelling(flats) {
+      spellFlats = flats;
+      syncEnharmonicButtons();
+      render();
     }
 
     function noteName(pc) {
@@ -280,21 +311,24 @@
     function keySignatureCount() {
       const pc = rootPc();
       if (mode === "major") {
-        if (prefersFlats() && MAJOR_FLAT_SIG[pc] != null) return MAJOR_FLAT_SIG[pc];
-        return MAJOR_SIG[pc] ?? 0;
+        return prefersFlats() ? (MAJOR_FLAT_SIG[pc] ?? 0) : (MAJOR_SHARP_SIG[pc] ?? 0);
       }
+      // Natural minor shares the signature of its relative major
       const rel = (pc + 3) % 12;
-      if (prefersFlats() && MAJOR_FLAT_SIG[rel] != null) return MAJOR_FLAT_SIG[rel];
-      return MAJOR_SIG[rel] ?? 0;
+      return prefersFlats() ? (MAJOR_FLAT_SIG[rel] ?? 0) : (MAJOR_SHARP_SIG[rel] ?? 0);
     }
 
     function formatKeySig(count) {
       if (count === 0) return "no key signature";
       if (count > 0) {
-        return `${SHARP_ORDER.slice(0, count).join(" ")} · ${count} sharp${count > 1 ? "s" : ""}`;
+        const n = Math.min(count, SHARP_ORDER.length);
+        const extra = count > n ? ` (+${count - n})` : "";
+        return `${SHARP_ORDER.slice(0, n).join(" ")}${extra} · ${count} sharp${count > 1 ? "s" : ""}`;
       }
-      const n = -count;
-      return `${FLAT_ORDER.slice(0, n).join(" ")} · ${n} flat${n > 1 ? "s" : ""}`;
+      const total = -count;
+      const n = Math.min(total, FLAT_ORDER.length);
+      const extra = total > n ? ` (+${total - n})` : "";
+      return `${FLAT_ORDER.slice(0, n).join(" ")}${extra} · ${total} flat${total > 1 ? "s" : ""}`;
     }
 
     function absIndex(octave, pc) {
@@ -551,6 +585,8 @@
       const next = clampFirst(firstNote + delta);
       if (next !== firstNote) {
         firstNote = next;
+        spellFlats = conventionalFlats(rootPc());
+        syncEnharmonicButtons();
         render();
       }
     }
@@ -559,11 +595,15 @@
       mode = next;
       btnMajor.setAttribute("aria-pressed", String(mode === "major"));
       btnMinor.setAttribute("aria-pressed", String(mode === "minor"));
+      spellFlats = conventionalFlats(rootPc());
+      syncEnharmonicButtons();
       render();
     }
 
     btnMajor.addEventListener("click", () => setMode("major"));
     btnMinor.addEventListener("click", () => setMode("minor"));
+    btnSharps.addEventListener("click", () => setSpelling(false));
+    btnFlats.addEventListener("click", () => setSpelling(true));
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft") {
@@ -574,6 +614,10 @@
         shiftFirst(1);
       } else if (e.key === "m" || e.key === "M") {
         setMode(mode === "major" ? "minor" : "major");
+      } else if (e.key === "f" || e.key === "F") {
+        setSpelling(true);
+      } else if (e.key === "s" || e.key === "S") {
+        setSpelling(false);
       }
     });
 
@@ -594,6 +638,8 @@
       const next = clampFirst(originFirst + semitones);
       if (next !== firstNote) {
         firstNote = next;
+        spellFlats = conventionalFlats(rootPc());
+        syncEnharmonicButtons();
         render();
       }
     }
@@ -613,6 +659,7 @@
       render();
     });
 
+    syncEnharmonicButtons();
     buildKeyboard();
   </script>
 </body>
