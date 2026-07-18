@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scale Net</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: sans-serif;
+      font-size: 14px;
+      color: #000;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .stage {
+      width: min(1200px, 100%);
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .readout {
+      text-align: right;
+    }
+
+    .scale-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .key-sig {
+      margin-top: 0.2rem;
+      font-size: 0.9rem;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .mode button {
+      font: inherit;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid #000;
+      background: #fff;
+      color: #000;
+      cursor: pointer;
+    }
+
+    .mode button[aria-pressed="true"] {
+      background: #000;
+      color: #fff;
+    }
+
+    .hint {
+      font-size: 0.85rem;
+      color: #333;
+    }
+
+    .piano-wrap {
+      position: relative;
+      user-select: none;
+      touch-action: none;
+      cursor: grab;
+      padding-top: 56px;
+    }
+
+    .piano-wrap:active { cursor: grabbing; }
+
+    .grid {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: calc(56px + 1.5cm);
+      pointer-events: none;
+      z-index: 3;
+      overflow: visible;
+    }
+
+    .grid svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .keyboard {
+      position: relative;
+      height: 160px;
+      display: flex;
+      border: 1px solid #000;
+      border-top-width: 2px;
+    }
+
+    .white-key {
+      flex: 1;
+      position: relative;
+      background: #fff;
+      border-right: 1px solid #000;
+    }
+
+    .white-key:last-of-type { border-right: none; }
+
+    .white-key.in-scale {
+      background: #e8e8e8;
+    }
+
+    .white-key .label {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.65rem;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .white-key.show-label .label { opacity: 1; }
+
+    .black-keys {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .black-key {
+      position: absolute;
+      top: 0;
+      width: var(--bw);
+      height: 58%;
+      background: #000;
+    }
+
+    .black-key.in-scale {
+      outline: 1px solid #fff;
+      outline-offset: -3px;
+    }
+
+    .notes-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.5rem;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .notes-row .root-note { font-weight: 700; }
+
+    @media (max-width: 640px) {
+      .keyboard { height: 120px; }
+      .readout { text-align: left; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <header>
+      <h1>Scale Net</h1>
+      <div class="readout">
+        <div class="scale-name" id="scaleName">C major</div>
+        <div class="key-sig" id="keySig">no key signature</div>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="mode" role="group" aria-label="Scale type">
+        <button type="button" id="btnMajor" aria-pressed="true">Major</button>
+        <button type="button" id="btnMinor" aria-pressed="false">Minor</button>
+      </div>
+      <p class="hint">Drag or ← → · C major is straight; sharps/flats step sideways onto the key</p>
+    </div>
+
+    <div class="piano-wrap" id="pianoWrap" tabindex="0" aria-label="Piano with movable scale grid">
+      <div class="grid" id="grid" aria-hidden="true">
+        <svg id="gridSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="keyboard" id="keyboard">
+        <div class="black-keys" id="blackKeys"></div>
+      </div>
+    </div>
+
+    <div class="notes-row" id="notesRow" aria-live="polite"></div>
+  </div>
+
+  <script>
+    const OCTAVES = 4;
+    // Absolute semitone indices: octave 0 = 0–11, …, octave 3 = 36–47
+    const ZONE_START = 12; // C of 2nd octave — leftmost allowed first note
+    const ZONE_END = 47;   // B of 4th octave
+    const LABEL_H = 16;    // room above the top bar for W/H labels
+    const GRID_ABOVE = 56; // overhang above keyboard (includes labels)
+    const STEP_Y = 34;     // L-steps sit here — clear of the keyboard
+    const GRID_INTO_CM = 1.5; // verticals stop this far into the keyboard
+
+    // Semitone offsets from first tonic through the octave tonic (8 notes)
+    const PATTERNS = {
+      major: [0, 2, 4, 5, 7, 9, 11, 12],
+      minor: [0, 2, 3, 5, 7, 8, 10, 12],
+    };
+
+    const NOTE_SHARP = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+    const NOTE_FLAT  = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"];
+
+    const WHITE_PC = [0, 2, 4, 5, 7, 9, 11];
+    const LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
+    const BLACK_META = [
+      { pc: 1, after: 0 },
+      { pc: 3, after: 1 },
+      { pc: 6, after: 3 },
+      { pc: 8, after: 4 },
+      { pc: 10, after: 5 },
+    ];
+
+    const MAJOR_SIG = {
+      0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: 7,
+      5: -1, 10: -2, 3: -3, 8: -4,
+    };
+    const MAJOR_FLAT_SIG = { 1: -5, 6: -6, 5: -1, 10: -2, 3: -3, 8: -4 };
+    const MAJOR_USE_FLATS = new Set([5, 10, 3, 8, 1, 6]);
+    const MINOR_USE_FLATS = new Set([2, 7, 0, 5, 10, 3, 8]);
+
+    const SHARP_ORDER = ["F♯", "C♯", "G♯", "D♯", "A♯", "E♯", "B♯"];
+    const FLAT_ORDER  = ["B♭", "E♭", "A♭", "D♭", "G♭", "C♭", "F♭"];
+
+    let mode = "major";
+    /** Absolute index of the first grid note (tonic). Grid only extends right from here. */
+    let firstNote = ZONE_START;
+    let keyCenters = [];
+    let stepWidth = 40;
+
+    const keyboard = document.getElementById("keyboard");
+    const blackKeysEl = document.getElementById("blackKeys");
+    const gridEl = document.getElementById("grid");
+    const gridSvg = document.getElementById("gridSvg");
+    const pianoWrap = document.getElementById("pianoWrap");
+    const scaleNameEl = document.getElementById("scaleName");
+    const keySigEl = document.getElementById("keySig");
+    const notesRow = document.getElementById("notesRow");
+    const btnMajor = document.getElementById("btnMajor");
+    const btnMinor = document.getElementById("btnMinor");
+
+    function rootPc() {
+      return firstNote % 12;
+    }
+
+    function prefersFlats() {
+      const pc = rootPc();
+      return mode === "major" ? MAJOR_USE_FLATS.has(pc) : MINOR_USE_FLATS.has(pc);
+    }
+
+    function noteName(pc) {
+      return prefersFlats() ? NOTE_FLAT[pc] : NOTE_SHARP[pc];
+    }
+
+    function keySignatureCount() {
+      const pc = rootPc();
+      if (mode === "major") {
+        if (prefersFlats() && MAJOR_FLAT_SIG[pc] != null) return MAJOR_FLAT_SIG[pc];
+        return MAJOR_SIG[pc] ?? 0;
+      }
+      const rel = (pc + 3) % 12;
+      if (prefersFlats() && MAJOR_FLAT_SIG[rel] != null) return MAJOR_FLAT_SIG[rel];
+      return MAJOR_SIG[rel] ?? 0;
+    }
+
+    function formatKeySig(count) {
+      if (count === 0) return "no key signature";
+      if (count > 0) {
+        return `${SHARP_ORDER.slice(0, count).join(" ")} · ${count} sharp${count > 1 ? "s" : ""}`;
+      }
+      const n = -count;
+      return `${FLAT_ORDER.slice(0, n).join(" ")} · ${n} flat${n > 1 ? "s" : ""}`;
+    }
+
+    function absIndex(octave, pc) {
+      return octave * 12 + pc;
+    }
+
+    /** Letter index 0–6 for the tonic (C=0 … B=6), using sharp/flat spelling. */
+    function tonicLetterIndex(pc) {
+      const whiteIdx = WHITE_PC.indexOf(pc);
+      if (whiteIdx !== -1) return whiteIdx;
+      // Black key: ♯ → letter of white below; ♭ → letter of white above
+      if (prefersFlats()) return WHITE_PC.indexOf(pc + 1);
+      return WHITE_PC.indexOf(pc - 1);
+    }
+
+    /** White-key abs for a letter, nearest to targetAbs (the C-major-style guide seat). */
+    function guideAbsForLetter(letterIdx, targetAbs) {
+      const guidePc = WHITE_PC[letterIdx];
+      let guideAbs = Math.floor(targetAbs / 12) * 12 + guidePc;
+      while (guideAbs - targetAbs > 6) guideAbs -= 12;
+      while (targetAbs - guideAbs > 6) guideAbs += 12;
+      return guideAbs;
+    }
+
+    function xAtAbs(abs) {
+      const k = keyCenters.find((c) => c.abs === abs);
+      return k ? k.x : null;
+    }
+
+    /**
+     * Eight degrees: guide = white-key “C major shape” seat (letter name),
+     * target = sounding scale note. Equal when there is no accidental.
+     */
+    function gridDegrees() {
+      const root = rootPc();
+      const letter0 = tonicLetterIndex(root);
+      const pattern = PATTERNS[mode];
+      return pattern.map((off, i) => {
+        const targetAbs = firstNote + off;
+        const letterIdx = (letter0 + (i === 7 ? 0 : i)) % 7;
+        const guideAbs = guideAbsForLetter(letterIdx, targetAbs);
+        return {
+          i,
+          letter: LETTERS[letterIdx],
+          targetAbs,
+          guideAbs,
+          stepped: guideAbs !== targetAbs,
+        };
+      });
+    }
+
+    function degreeLabel(deg) {
+      const targetPc = ((deg.targetAbs % 12) + 12) % 12;
+      const guidePc = WHITE_PC[LETTERS.indexOf(deg.letter)];
+      if (targetPc === guidePc) return deg.letter;
+      // Sharp or flat relative to the guide letter
+      const diff = ((targetPc - guidePc + 12) % 12);
+      if (diff === 1) return deg.letter + "♯";
+      if (diff === 11) return deg.letter + "♭";
+      return noteName(targetPc);
+    }
+
+    /** Absolute indices of the 8 sounding grid notes (first tonic … second tonic). */
+    function activeAbsSet() {
+      return new Set(PATTERNS[mode].map((off) => firstNote + off));
+    }
+
+    function isActiveKey(abs) {
+      return activeAbsSet().has(abs);
+    }
+
+    function buildKeyboard() {
+      keyboard.querySelectorAll(".white-key").forEach((el) => el.remove());
+      blackKeysEl.innerHTML = "";
+
+      for (let o = 0; o < OCTAVES; o++) {
+        for (let w = 0; w < 7; w++) {
+          const pc = WHITE_PC[w];
+          const key = document.createElement("div");
+          key.className = "white-key";
+          key.dataset.pc = String(pc);
+          key.dataset.octave = String(o);
+          key.dataset.abs = String(absIndex(o, pc));
+          const label = document.createElement("span");
+          label.className = "label";
+          label.textContent = NOTE_SHARP[pc];
+          key.appendChild(label);
+          keyboard.insertBefore(key, blackKeysEl);
+        }
+      }
+
+      requestAnimationFrame(() => {
+        layoutGeometry();
+        render();
+      });
+    }
+
+    function layoutGeometry() {
+      blackKeysEl.innerHTML = "";
+      keyCenters = [];
+
+      const whiteEls = [...keyboard.querySelectorAll(".white-key")];
+      const kbRect = keyboard.getBoundingClientRect();
+      const whiteW = whiteEls[0].getBoundingClientRect().width;
+      const blackW = whiteW * 0.58;
+      blackKeysEl.style.setProperty("--bw", `${blackW}px`);
+
+      whiteEls.forEach((el, i) => {
+        const o = Math.floor(i / 7);
+        const w = i % 7;
+        const pc = WHITE_PC[w];
+        const abs = absIndex(o, pc);
+        const rect = el.getBoundingClientRect();
+        const x = rect.left - kbRect.left + rect.width / 2;
+        keyCenters.push({ pc, octave: o, abs, x, isBlack: false, el });
+      });
+
+      for (let o = 0; o < OCTAVES; o++) {
+        for (const bk of BLACK_META) {
+          const wi = o * 7 + bk.after;
+          const whiteEl = whiteEls[wi];
+          const nextEl = whiteEls[wi + 1];
+          if (!whiteEl || !nextEl) continue;
+
+          const seam = whiteEl.getBoundingClientRect().right - kbRect.left;
+          const left = seam - blackW / 2;
+          const abs = absIndex(o, bk.pc);
+
+          const el = document.createElement("div");
+          el.className = "black-key";
+          el.style.left = `${left}px`;
+          el.dataset.pc = String(bk.pc);
+          el.dataset.octave = String(o);
+          el.dataset.abs = String(abs);
+          blackKeysEl.appendChild(el);
+
+          keyCenters.push({
+            pc: bk.pc,
+            octave: o,
+            abs,
+            x: left + blackW / 2,
+            isBlack: true,
+            el,
+          });
+        }
+      }
+
+      keyCenters.sort((a, b) => a.abs - b.abs);
+
+      const mid = keyCenters.filter((k) => k.octave === 1);
+      if (mid.length >= 2) {
+        let sum = 0;
+        for (let i = 1; i < mid.length; i++) sum += mid[i].x - mid[i - 1].x;
+        stepWidth = sum / (mid.length - 1);
+      }
+
+      const intoPx = GRID_INTO_CM * (96 / 2.54); // CSS cm ≈ 96dpi
+      gridEl.style.height = `${GRID_ABOVE + intoPx}px`;
+    }
+
+    function render() {
+      const root = rootPc();
+      scaleNameEl.textContent = `${noteName(root)} ${mode}`;
+      keySigEl.textContent = formatKeySig(keySignatureCount());
+
+      keyboard.querySelectorAll(".white-key, .black-key").forEach((el) => {
+        const pc = Number(el.dataset.pc);
+        const abs = Number(el.dataset.abs);
+        const active = isActiveKey(abs);
+        el.classList.toggle("in-scale", active);
+        if (el.classList.contains("white-key")) {
+          el.classList.toggle("show-label", active);
+          const label = el.querySelector(".label");
+          if (label) label.textContent = noteName(pc);
+        }
+      });
+
+      const degrees = gridDegrees();
+      notesRow.innerHTML = degrees
+        .map((d, i) => {
+          const isTonic = i === 0 || i === degrees.length - 1;
+          return `<span class="${isTonic ? "root-note" : ""}">${degreeLabel(d)}</span>`;
+        })
+        .join("<span>·</span>");
+
+      drawGrid(degrees);
+    }
+
+    function drawGrid(degrees) {
+      const w = keyboard.offsetWidth;
+      const h = gridEl.offsetHeight;
+      const topY = LABEL_H + 0.5;
+      const bottomY = h - 0.5;
+      const stepY = STEP_Y;
+
+      gridSvg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      gridSvg.setAttribute("width", String(w));
+      gridSvg.setAttribute("height", String(h));
+
+      const segs = [];
+      const guideXs = [];
+      const pattern = PATTERNS[mode];
+
+      for (const d of degrees) {
+        const xGuide = xAtAbs(d.guideAbs);
+        const xTarget = xAtAbs(d.targetAbs);
+        if (xGuide == null || xTarget == null) continue;
+        guideXs.push(xGuide);
+
+        if (!d.stepped) {
+          segs.push(`<line x1="${xGuide}" y1="${topY}" x2="${xGuide}" y2="${bottomY}" />`);
+        } else {
+          segs.push(
+            `<path d="M ${xGuide} ${topY} L ${xGuide} ${stepY} L ${xTarget} ${stepY} L ${xTarget} ${bottomY}" />`
+          );
+        }
+      }
+
+      if (guideXs.length === 0) {
+        gridSvg.innerHTML = "";
+        return;
+      }
+
+      const left = Math.min(...guideXs);
+      const right = Math.max(...guideXs);
+      const bar = `<line x1="${left}" y1="${topY}" x2="${right}" y2="${topY}" />`;
+
+      // Whole / half step labels between consecutive guide seats
+      const labels = [];
+      for (let i = 0; i < guideXs.length - 1; i++) {
+        const semitones = pattern[i + 1] - pattern[i];
+        const label = semitones === 1 ? "half" : "whole";
+        const mx = (guideXs[i] + guideXs[i + 1]) / 2;
+        labels.push(
+          `<text x="${mx}" y="${LABEL_H - 3}" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#000">${label}</text>`
+        );
+      }
+
+      gridSvg.innerHTML = `
+        <g stroke="#000" stroke-width="1.25" fill="none" stroke-linecap="square" stroke-linejoin="miter">
+          ${bar}
+          ${segs.join("")}
+        </g>
+        <g stroke="none" fill="#000">${labels.join("")}</g>
+      `;
+    }
+
+    function clampFirst(n) {
+      // Keep the full tonic→tonic span on the keyboard (octaves 2–4)
+      return Math.max(ZONE_START, Math.min(ZONE_END - 12, n));
+    }
+
+    function shiftFirst(delta) {
+      const next = clampFirst(firstNote + delta);
+      if (next !== firstNote) {
+        firstNote = next;
+        render();
+      }
+    }
+
+    function setMode(next) {
+      mode = next;
+      btnMajor.setAttribute("aria-pressed", String(mode === "major"));
+      btnMinor.setAttribute("aria-pressed", String(mode === "minor"));
+      render();
+    }
+
+    btnMajor.addEventListener("click", () => setMode("major"));
+    btnMinor.addEventListener("click", () => setMode("minor"));
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        shiftFirst(-1);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        shiftFirst(1);
+      } else if (e.key === "m" || e.key === "M") {
+        setMode(mode === "major" ? "minor" : "major");
+      }
+    });
+
+    let dragging = false;
+    let originX = 0;
+    let originFirst = 0;
+
+    function onPointerDown(e) {
+      dragging = true;
+      originX = e.clientX;
+      originFirst = firstNote;
+      pianoWrap.setPointerCapture(e.pointerId);
+    }
+
+    function onPointerMove(e) {
+      if (!dragging) return;
+      const semitones = Math.round((e.clientX - originX) / stepWidth);
+      const next = clampFirst(originFirst + semitones);
+      if (next !== firstNote) {
+        firstNote = next;
+        render();
+      }
+    }
+
+    function onPointerUp(e) {
+      dragging = false;
+      try { pianoWrap.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    pianoWrap.addEventListener("pointerdown", onPointerDown);
+    pianoWrap.addEventListener("pointermove", onPointerMove);
+    pianoWrap.addEventListener("pointerup", onPointerUp);
+    pianoWrap.addEventListener("pointercancel", onPointerUp);
+
+    window.addEventListener("resize", () => {
+      layoutGeometry();
+      render();
+    });
+
+    buildKeyboard();
+  </script>
+</body>
+</html>
