@@ -24,32 +24,90 @@
       width: min(1200px, 100%);
     }
 
-    header {
+    .masthead {
       display: flex;
       flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 0.75rem 1.5rem;
-      margin-bottom: 1rem;
+      align-items: flex-start;
+      gap: 0.5rem 1rem;
+      margin-bottom: 1.5rem;
+      /* room for the circle sticking up above the title */
+      padding-top: calc(min(207px, 58vw) - 1.5rem);
+    }
+
+    .masthead-left {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .title-row {
+      position: relative;
+      display: block;
+      width: max-content;
     }
 
     h1 {
       font-size: 1.25rem;
       font-weight: 700;
+      line-height: 1.2;
     }
 
     .readout {
+      margin-left: auto;
       text-align: right;
+      align-self: flex-end;
+      min-height: 2.75em;
+    }
+
+    .enharmonic {
+      display: inline-flex;
+      flex-shrink: 0;
+    }
+
+    .enharmonic button {
+      font: inherit;
+      font-size: 1rem;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid #000;
+      background: #fff;
+      color: #000;
+      cursor: pointer;
+    }
+
+    .enharmonic button + button {
+      border-left: none;
+    }
+
+    .enharmonic button[aria-pressed="true"] {
+      background: #000;
+      color: #fff;
+    }
+
+    .enharmonic button:disabled {
+      color: #bbb;
+      border-color: #ccc;
+      background: #f5f5f5;
+      cursor: default;
+    }
+
+    .enharmonic button:disabled[aria-pressed="true"] {
+      background: #ddd;
+      color: #999;
+      border-color: #ccc;
     }
 
     .scale-name {
       font-size: 1.1rem;
       font-weight: 700;
+      line-height: 1.35;
+      min-height: 1.35em;
     }
 
     .key-sig {
       margin-top: 0.2rem;
       font-size: 0.9rem;
+      line-height: 1.4;
+      min-height: 1.4em;
     }
 
     .controls {
@@ -57,7 +115,6 @@
       flex-wrap: wrap;
       align-items: center;
       gap: 0.75rem 1.25rem;
-      margin-bottom: 1.5rem;
     }
 
     .mode button {
@@ -79,6 +136,50 @@
       color: #333;
     }
 
+    .circle-wrap {
+      position: absolute;
+      left: 100%;
+      bottom: 0;
+      margin-left: 0.15rem;
+      line-height: 0;
+    }
+
+    .circle-wrap svg {
+      width: min(207px, 58vw);
+      height: auto;
+      display: block;
+    }
+
+    .cof-seg {
+      fill: #fff;
+      stroke: #000;
+      stroke-width: 1;
+    }
+
+    .cof-seg.active {
+      fill: #000;
+    }
+
+    .cof-label {
+      font-family: sans-serif;
+      font-weight: 700;
+      fill: #000;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+    }
+
+    .cof-label.active {
+      fill: #fff;
+    }
+
+    .cof-ring-label {
+      font-family: sans-serif;
+      font-size: 9px;
+      fill: #666;
+      text-anchor: middle;
+    }
+
     .piano-wrap {
       position: relative;
       user-select: none;
@@ -94,7 +195,7 @@
       left: 0;
       right: 0;
       top: 0;
-      height: calc(56px + 1.5cm);
+      height: calc(56px + 0.5cm);
       pointer-events: none;
       z-index: 3;
       overflow: visible;
@@ -128,18 +229,6 @@
       background: #e8e8e8;
     }
 
-    .white-key .label {
-      position: absolute;
-      bottom: 8px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.65rem;
-      pointer-events: none;
-      opacity: 0;
-    }
-
-    .white-key.show-label .label { opacity: 1; }
-
     .black-keys {
       position: absolute;
       inset: 0;
@@ -156,47 +245,68 @@
     }
 
     .black-key.in-scale {
-      outline: 1px solid #fff;
-      outline-offset: -3px;
+      background: #2a2a2a;
     }
 
-    .notes-row {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0.35rem 0.5rem;
-      margin-top: 1rem;
-      font-size: 0.9rem;
+    .scale-labels {
+      position: relative;
+      height: 1.5em;
+      margin-top: 0.4rem;
     }
 
-    .notes-row .root-note { font-weight: 700; }
+    .scale-labels span {
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      font-size: 0.75rem;
+      line-height: 1.5em;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .scale-labels .root-note {
+      font-weight: 700;
+    }
 
     @media (max-width: 640px) {
       .keyboard { height: 120px; }
-      .readout { text-align: left; width: 100%; }
+      .readout {
+        margin-left: 0;
+        text-align: left;
+        width: 100%;
+        order: 3;
+      }
+      .scale-labels span { font-size: 0.6rem; }
     }
   </style>
 </head>
 <body>
   <div class="stage">
-    <header>
-      <h1>Keys Scales</h1>
+    <div class="masthead">
+      <div class="masthead-left">
+        <div class="title-row">
+          <h1>Keys Scales</h1>
+          <div class="circle-wrap" aria-hidden="true">
+            <svg id="circleSvg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="mode" role="group" aria-label="Scale type">
+            <button type="button" id="btnMajor" aria-pressed="true">Major</button>
+            <button type="button" id="btnMinor" aria-pressed="false">Minor</button>
+          </div>
+          <div class="enharmonic" role="group" aria-label="Enharmonic spelling">
+            <button type="button" id="btnSharp" aria-pressed="false" disabled>♯</button>
+            <button type="button" id="btnFlat" aria-pressed="false" disabled>♭</button>
+          </div>
+          <p class="hint">Drag or ← →</p>
+        </div>
+      </div>
+
       <div class="readout">
         <div class="scale-name" id="scaleName">C major</div>
         <div class="key-sig" id="keySig">no key signature</div>
       </div>
-    </header>
-
-    <div class="controls">
-      <div class="mode" role="group" aria-label="Scale type">
-        <button type="button" id="btnMajor" aria-pressed="true">Major</button>
-        <button type="button" id="btnMinor" aria-pressed="false">Minor</button>
-      </div>
-      <div class="mode" role="group" aria-label="Enharmonic spelling">
-        <button type="button" id="btnSharps" aria-pressed="true" title="Spell with sharps">♯</button>
-        <button type="button" id="btnFlats" aria-pressed="false" title="Spell with flats">♭</button>
-      </div>
-      <p class="hint">Drag or ← →</p>
     </div>
 
     <div class="piano-wrap" id="pianoWrap" tabindex="0" aria-label="Piano with movable scale grid">
@@ -206,9 +316,8 @@
       <div class="keyboard" id="keyboard">
         <div class="black-keys" id="blackKeys"></div>
       </div>
+      <div class="scale-labels" id="scaleLabels" aria-live="polite"></div>
     </div>
-
-    <div class="notes-row" id="notesRow" aria-live="polite"></div>
   </div>
 
   <script>
@@ -219,7 +328,7 @@
     const LABEL_H = 16;    // room above the top bar for W/H labels
     const GRID_ABOVE = 56; // overhang above keyboard (includes labels)
     const STEP_Y = 34;     // L-steps sit here — clear of the keyboard
-    const GRID_INTO_CM = 1.5; // verticals stop this far into the keyboard
+    const GRID_INTO_CM = 0.5; // verticals stop this far into the keyboard
 
     // Semitone offsets from first tonic through the octave tonic (8 notes)
     const PATTERNS = {
@@ -244,27 +353,27 @@
       0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: 7,
       5: -1, 10: -2, 3: -3, 8: -4,
     };
-    // Enharmonic flat-side signatures (major) by pitch class
-    const MAJOR_FLAT_SIG = {
-      0: 0, 5: -1, 10: -2, 3: -3, 8: -4, 1: -5, 6: -6, 11: -7,
-      4: -8, 9: -9, 2: -10, 7: -11,
-    };
-    // Enharmonic sharp-side signatures (major) by pitch class
-    const MAJOR_SHARP_SIG = {
-      0: 0, 7: 1, 2: 2, 9: 3, 4: 4, 11: 5, 6: 6, 1: 7,
-      8: 8, 3: 9, 10: 10, 5: 11,
-    };
+    const MAJOR_FLAT_SIG = { 1: -5, 6: -6, 5: -1, 10: -2, 3: -3, 8: -4, 11: -7 };
     const MAJOR_USE_FLATS = new Set([5, 10, 3, 8, 1, 6]);
     const MINOR_USE_FLATS = new Set([2, 7, 0, 5, 10, 3, 8]);
+    // Enharmonic pairs where ♯/♭ spelling can be toggled
+    const ENHARMONIC_MAJOR = new Set([1, 6, 11]); // C♯/D♭, F♯/G♭, B/C♭
+    const ENHARMONIC_MINOR = new Set([8, 3, 10]); // G♯m/A♭m, D♯m/E♭m, A♯m/B♭m
 
     const SHARP_ORDER = ["F♯", "C♯", "G♯", "D♯", "A♯", "E♯", "B♯"];
     const FLAT_ORDER  = ["B♭", "E♭", "A♭", "D♭", "G♭", "C♭", "F♭"];
 
+    // Circle of fifths (clockwise from C at top). Counterclockwise = fourths.
+    const COF_MAJOR_PC = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+    // Dual spellings: B/C♭, G♭/F♯, D♭/C♯
+    const COF_MAJOR_LABEL = ["C", "G", "D", "A", "E", "B/C♭", "G♭/F♯", "D♭/C♯", "A♭", "E♭", "B♭", "F"];
+    const COF_MINOR_LABEL = ["Am", "Em", "Bm", "F♯m", "C♯m", "G♯m", "E♭m", "B♭m", "Fm", "Cm", "Gm", "Dm"];
+
     let mode = "major";
-    /** User spelling: false = sharps, true = flats */
-    let spellFlats = false;
     /** Absolute index of the first grid note (tonic). Grid only extends right from here. */
     let firstNote = ZONE_START;
+    /** User spelling on enharmonic pairs: true = flats, false = sharps */
+    let userPreferFlat = false;
     let keyCenters = [];
     let stepWidth = 40;
 
@@ -272,75 +381,190 @@
     const blackKeysEl = document.getElementById("blackKeys");
     const gridEl = document.getElementById("grid");
     const gridSvg = document.getElementById("gridSvg");
+    const circleSvg = document.getElementById("circleSvg");
     const pianoWrap = document.getElementById("pianoWrap");
     const scaleNameEl = document.getElementById("scaleName");
     const keySigEl = document.getElementById("keySig");
-    const notesRow = document.getElementById("notesRow");
+    const scaleLabelsEl = document.getElementById("scaleLabels");
     const btnMajor = document.getElementById("btnMajor");
     const btnMinor = document.getElementById("btnMinor");
-    const btnSharps = document.getElementById("btnSharps");
-    const btnFlats = document.getElementById("btnFlats");
+    const btnSharp = document.getElementById("btnSharp");
+    const btnFlat = document.getElementById("btnFlat");
 
     function rootPc() {
       return firstNote % 12;
     }
 
-    function conventionalFlats(pc) {
+    function canEnharmonicSwitch() {
+      const pc = rootPc();
+      return mode === "major" ? ENHARMONIC_MAJOR.has(pc) : ENHARMONIC_MINOR.has(pc);
+    }
+
+    /** Default spelling for the current key (ignores the ♯/♭ toggle). */
+    function defaultPrefersFlats() {
+      const pc = rootPc();
       return mode === "major" ? MAJOR_USE_FLATS.has(pc) : MINOR_USE_FLATS.has(pc);
     }
 
-    function prefersFlats() {
-      return spellFlats;
-    }
-
-    function syncEnharmonicButtons() {
-      btnSharps.setAttribute("aria-pressed", String(!spellFlats));
-      btnFlats.setAttribute("aria-pressed", String(spellFlats));
-    }
-
-    function setSpelling(flats) {
-      spellFlats = flats;
-      syncEnharmonicButtons();
-      render();
+    /** Spelling for scale name / note labels / key signature. */
+    function displayPrefersFlats() {
+      if (canEnharmonicSwitch()) return userPreferFlat;
+      return defaultPrefersFlats();
     }
 
     function noteName(pc) {
-      return prefersFlats() ? NOTE_FLAT[pc] : NOTE_SHARP[pc];
+      if (displayPrefersFlats()) {
+        if (pc === 11) return "C♭";
+        return NOTE_FLAT[pc];
+      }
+      return NOTE_SHARP[pc];
     }
 
     function keySignatureCount() {
       const pc = rootPc();
       if (mode === "major") {
-        return prefersFlats() ? (MAJOR_FLAT_SIG[pc] ?? 0) : (MAJOR_SHARP_SIG[pc] ?? 0);
+        if (displayPrefersFlats() && MAJOR_FLAT_SIG[pc] != null) return MAJOR_FLAT_SIG[pc];
+        return MAJOR_SIG[pc] ?? 0;
       }
-      // Natural minor shares the signature of its relative major
       const rel = (pc + 3) % 12;
-      return prefersFlats() ? (MAJOR_FLAT_SIG[rel] ?? 0) : (MAJOR_SHARP_SIG[rel] ?? 0);
+      if (displayPrefersFlats() && MAJOR_FLAT_SIG[rel] != null) return MAJOR_FLAT_SIG[rel];
+      return MAJOR_SIG[rel] ?? 0;
+    }
+
+    function syncEnharmonicPreference() {
+      if (canEnharmonicSwitch()) userPreferFlat = defaultPrefersFlats();
+    }
+
+    function updateEnharmonicButtons() {
+      const on = canEnharmonicSwitch();
+      btnSharp.disabled = !on;
+      btnFlat.disabled = !on;
+      if (!on) {
+        btnSharp.setAttribute("aria-pressed", "false");
+        btnFlat.setAttribute("aria-pressed", "false");
+        return;
+      }
+      btnSharp.setAttribute("aria-pressed", String(!userPreferFlat));
+      btnFlat.setAttribute("aria-pressed", String(userPreferFlat));
     }
 
     function formatKeySig(count) {
       if (count === 0) return "no key signature";
       if (count > 0) {
-        const n = Math.min(count, SHARP_ORDER.length);
-        const extra = count > n ? ` (+${count - n})` : "";
-        return `${SHARP_ORDER.slice(0, n).join(" ")}${extra} · ${count} sharp${count > 1 ? "s" : ""}`;
+        return `${SHARP_ORDER.slice(0, count).join(" ")} · ${count} sharp${count > 1 ? "s" : ""}`;
       }
-      const total = -count;
-      const n = Math.min(total, FLAT_ORDER.length);
-      const extra = total > n ? ` (+${total - n})` : "";
-      return `${FLAT_ORDER.slice(0, n).join(" ")}${extra} · ${total} flat${total > 1 ? "s" : ""}`;
+      const n = -count;
+      return `${FLAT_ORDER.slice(0, n).join(" ")} · ${n} flat${n > 1 ? "s" : ""}`;
     }
 
     function absIndex(octave, pc) {
       return octave * 12 + pc;
     }
 
-    /** Letter index 0–6 for the tonic (C=0 … B=6), using sharp/flat spelling. */
-    function tonicLetterIndex(pc) {
+    function polar(cx, cy, r, deg) {
+      const a = ((deg - 90) * Math.PI) / 180;
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    }
+
+    /** Annular sector path from angle a0→a1 (degrees), radii r0 (inner) → r1 (outer). */
+    function annulusPath(cx, cy, r0, r1, a0, a1) {
+      const large = a1 - a0 > 180 ? 1 : 0;
+      const [x0, y0] = polar(cx, cy, r1, a0);
+      const [x1, y1] = polar(cx, cy, r1, a1);
+      const [x2, y2] = polar(cx, cy, r0, a1);
+      const [x3, y3] = polar(cx, cy, r0, a0);
+      return [
+        `M ${x0} ${y0}`,
+        `A ${r1} ${r1} 0 ${large} 1 ${x1} ${y1}`,
+        `L ${x2} ${y2}`,
+        `A ${r0} ${r0} 0 ${large} 0 ${x3} ${y3}`,
+        "Z",
+      ].join(" ");
+    }
+
+    function cofLabelText(className, i, x, y, label, fontSize) {
+      if (label.includes("/")) {
+        const [a, b] = label.split("/");
+        // Prefer B / G♭ / D♭ slightly larger than their enharmonic pair below
+        const large = fontSize + 2;
+        const small = Math.max(9, fontSize - 1);
+        return (
+          `<text class="cof-label ${className}" data-i="${i}" x="${x}" y="${y}">` +
+          `<tspan x="${x}" dy="-0.55em" font-size="${large}">${a}</tspan>` +
+          `<tspan x="${x}" dy="1.2em" font-size="${small}">${b}</tspan>` +
+          `</text>`
+        );
+      }
+      return `<text class="cof-label ${className}" data-i="${i}" x="${x}" y="${y}" font-size="${fontSize}">${label}</text>`;
+    }
+
+    function buildCircleOfFifths() {
+      const cx = 140;
+      const cy = 140;
+      const outerR1 = 132;
+      const outerR0 = 88;
+      const innerR1 = 86;
+      const innerR0 = 48;
+      const parts = [];
+
+      for (let i = 0; i < 12; i++) {
+        const mid = i * 30;
+        const a0 = mid - 15;
+        const a1 = mid + 15;
+        const majorPc = COF_MAJOR_PC[i];
+        const minorPc = (majorPc + 9) % 12;
+
+        parts.push(
+          `<path class="cof-seg cof-major" data-i="${i}" data-pc="${majorPc}" d="${annulusPath(cx, cy, outerR0, outerR1, a0, a1)}" />`
+        );
+        parts.push(
+          `<path class="cof-seg cof-minor" data-i="${i}" data-pc="${minorPc}" d="${annulusPath(cx, cy, innerR0, innerR1, a0, a1)}" />`
+        );
+
+        const [mx, my] = polar(cx, cy, (outerR0 + outerR1) / 2, mid);
+        const [nx, ny] = polar(cx, cy, (innerR0 + innerR1) / 2, mid);
+        const majorLabel = COF_MAJOR_LABEL[i];
+        const minorLabel = COF_MINOR_LABEL[i];
+        const majorFs = majorLabel.includes("/") ? 12 : 14;
+        const minorFs = minorLabel.length > 3 ? 12 : 14;
+        parts.push(cofLabelText("cof-major-label", i, mx, my, majorLabel, majorFs));
+        parts.push(cofLabelText("cof-minor-label", i, nx, ny, minorLabel, minorFs));
+      }
+
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${innerR0 - 1}" fill="#fff" stroke="#000" stroke-width="1" />`);
+
+      circleSvg.innerHTML = parts.join("");
+    }
+
+    function updateCircleHighlight() {
+      const root = rootPc();
+      circleSvg.querySelectorAll(".cof-seg, .cof-label").forEach((el) => {
+        el.classList.remove("active");
+      });
+
+      if (mode === "major") {
+        const seg = circleSvg.querySelector(`.cof-major[data-pc="${root}"]`);
+        const label = seg && circleSvg.querySelector(`.cof-major-label[data-i="${seg.dataset.i}"]`);
+        if (seg) seg.classList.add("active");
+        if (label) label.classList.add("active");
+      } else {
+        const seg = circleSvg.querySelector(`.cof-minor[data-pc="${root}"]`);
+        const label = seg && circleSvg.querySelector(`.cof-minor-label[data-i="${seg.dataset.i}"]`);
+        if (seg) seg.classList.add("active");
+        if (label) label.classList.add("active");
+      }
+    }
+
+    /** Letter index 0–6 for the tonic (C=0 … B=6). */
+    function tonicLetterIndex(pc, useFlats) {
       const whiteIdx = WHITE_PC.indexOf(pc);
-      if (whiteIdx !== -1) return whiteIdx;
+      if (whiteIdx !== -1) {
+        // B sounding as C♭
+        if (useFlats && pc === 11) return 0;
+        return whiteIdx;
+      }
       // Black key: ♯ → letter of white below; ♭ → letter of white above
-      if (prefersFlats()) return WHITE_PC.indexOf(pc + 1);
+      if (useFlats) return WHITE_PC.indexOf(pc + 1);
       return WHITE_PC.indexOf(pc - 1);
     }
 
@@ -359,17 +583,35 @@
     }
 
     /**
-     * Eight degrees: guide = white-key “C major shape” seat (letter name),
-     * target = sounding scale note. Equal when there is no accidental.
+     * Eight degrees: guide = white-key “C major shape” seat (geometry only),
+     * letter = display spelling for labels. Grid geometry ignores the ♯/♭ toggle.
      */
     function gridDegrees() {
       const root = rootPc();
-      const letter0 = tonicLetterIndex(root);
+      const displayLetter0 = tonicLetterIndex(root, displayPrefersFlats());
+      // Grid seats always follow default / F♯ geometry — not the spelling toggle
+      let guideLetter0 = tonicLetterIndex(root, defaultPrefersFlats());
+      if (mode === "major" && root === 6) {
+        guideLetter0 = LETTERS.indexOf("F");
+      }
+      // G♯ minor / E♭ minor: use sharp-side seats so L-steps run rightward
+      if (mode === "minor" && (root === 8 || root === 3)) {
+        guideLetter0 = tonicLetterIndex(root, false);
+      }
       const pattern = PATTERNS[mode];
-      return pattern.map((off, i) => {
+      const degrees = pattern.map((off, i) => {
         const targetAbs = firstNote + off;
-        const letterIdx = (letter0 + (i === 7 ? 0 : i)) % 7;
-        const guideAbs = guideAbsForLetter(letterIdx, targetAbs);
+        const letterIdx = (displayLetter0 + (i === 7 ? 0 : i)) % 7;
+        const guideLetterIdx = (guideLetter0 + (i === 7 ? 0 : i)) % 7;
+        let guideAbs = guideAbsForLetter(guideLetterIdx, targetAbs);
+        if (i === 0) guideAbs = targetAbs;
+        if (i === 6 && mode === "major" && root === 6) {
+          guideAbs = targetAbs;
+        }
+        // E♭ minor: C♭ sounds as B — straight line, not a C→B step
+        if (i === 5 && mode === "minor" && root === 3) {
+          guideAbs = targetAbs;
+        }
         return {
           i,
           letter: LETTERS[letterIdx],
@@ -378,13 +620,21 @@
           stepped: guideAbs !== targetAbs,
         };
       });
+
+      const targets = new Set(degrees.map((d) => d.targetAbs));
+      return degrees.map((d) => ({
+        ...d,
+        guideOccupied: d.stepped && targets.has(d.guideAbs),
+      }));
     }
 
     function degreeLabel(deg) {
       const targetPc = ((deg.targetAbs % 12) + 12) % 12;
       const guidePc = WHITE_PC[LETTERS.indexOf(deg.letter)];
+      // C♭ / F♭ when letter is above a white-key sounding pitch
+      if (deg.letter === "C" && targetPc === 11) return "C♭";
+      if (deg.letter === "F" && targetPc === 4) return "F♭";
       if (targetPc === guidePc) return deg.letter;
-      // Sharp or flat relative to the guide letter
       const diff = ((targetPc - guidePc + 12) % 12);
       if (diff === 1) return deg.letter + "♯";
       if (diff === 11) return deg.letter + "♭";
@@ -412,10 +662,6 @@
           key.dataset.pc = String(pc);
           key.dataset.octave = String(o);
           key.dataset.abs = String(absIndex(o, pc));
-          const label = document.createElement("span");
-          label.className = "label";
-          label.textContent = NOTE_SHARP[pc];
-          key.appendChild(label);
           keyboard.insertBefore(key, blackKeysEl);
         }
       }
@@ -493,28 +739,26 @@
       const root = rootPc();
       scaleNameEl.textContent = `${noteName(root)} ${mode}`;
       keySigEl.textContent = formatKeySig(keySignatureCount());
+      updateEnharmonicButtons();
 
       keyboard.querySelectorAll(".white-key, .black-key").forEach((el) => {
-        const pc = Number(el.dataset.pc);
         const abs = Number(el.dataset.abs);
         const active = isActiveKey(abs);
         el.classList.toggle("in-scale", active);
-        if (el.classList.contains("white-key")) {
-          el.classList.toggle("show-label", active);
-          const label = el.querySelector(".label");
-          if (label) label.textContent = noteName(pc);
-        }
       });
 
       const degrees = gridDegrees();
-      notesRow.innerHTML = degrees
+      scaleLabelsEl.innerHTML = degrees
         .map((d, i) => {
+          const x = xAtAbs(d.targetAbs);
+          if (x == null) return "";
           const isTonic = i === 0 || i === degrees.length - 1;
-          return `<span class="${isTonic ? "root-note" : ""}">${degreeLabel(d)}</span>`;
+          return `<span class="${isTonic ? "root-note" : ""}" style="left:${x}px">${degreeLabel(d)}</span>`;
         })
-        .join("<span>·</span>");
+        .join("");
 
       drawGrid(degrees);
+      updateCircleHighlight();
     }
 
     function drawGrid(degrees) {
@@ -540,6 +784,12 @@
 
         if (!d.stepped) {
           segs.push(`<line x1="${xGuide}" y1="${topY}" x2="${xGuide}" y2="${bottomY}" />`);
+        } else if (d.guideOccupied) {
+          // Guide key is another degree’s sounding note (G♭: B is both B♭’s
+          // seat and C♭). Jog along the top bar, vertical only on the target.
+          segs.push(
+            `<path d="M ${xGuide} ${topY} L ${xTarget} ${topY} L ${xTarget} ${bottomY}" />`
+          );
         } else {
           segs.push(
             `<path d="M ${xGuide} ${topY} L ${xGuide} ${stepY} L ${xTarget} ${stepY} L ${xTarget} ${bottomY}" />`
@@ -585,8 +835,7 @@
       const next = clampFirst(firstNote + delta);
       if (next !== firstNote) {
         firstNote = next;
-        spellFlats = conventionalFlats(rootPc());
-        syncEnharmonicButtons();
+        syncEnharmonicPreference();
         render();
       }
     }
@@ -595,15 +844,21 @@
       mode = next;
       btnMajor.setAttribute("aria-pressed", String(mode === "major"));
       btnMinor.setAttribute("aria-pressed", String(mode === "minor"));
-      spellFlats = conventionalFlats(rootPc());
-      syncEnharmonicButtons();
+      syncEnharmonicPreference();
+      render();
+    }
+
+    function setEnharmonicFlat(flat) {
+      if (!canEnharmonicSwitch()) return;
+      if (userPreferFlat === flat) return;
+      userPreferFlat = flat;
       render();
     }
 
     btnMajor.addEventListener("click", () => setMode("major"));
     btnMinor.addEventListener("click", () => setMode("minor"));
-    btnSharps.addEventListener("click", () => setSpelling(false));
-    btnFlats.addEventListener("click", () => setSpelling(true));
+    btnSharp.addEventListener("click", () => setEnharmonicFlat(false));
+    btnFlat.addEventListener("click", () => setEnharmonicFlat(true));
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft") {
@@ -614,10 +869,6 @@
         shiftFirst(1);
       } else if (e.key === "m" || e.key === "M") {
         setMode(mode === "major" ? "minor" : "major");
-      } else if (e.key === "f" || e.key === "F") {
-        setSpelling(true);
-      } else if (e.key === "s" || e.key === "S") {
-        setSpelling(false);
       }
     });
 
@@ -638,8 +889,7 @@
       const next = clampFirst(originFirst + semitones);
       if (next !== firstNote) {
         firstNote = next;
-        spellFlats = conventionalFlats(rootPc());
-        syncEnharmonicButtons();
+        syncEnharmonicPreference();
         render();
       }
     }
@@ -659,7 +909,7 @@
       render();
     });
 
-    syncEnharmonicButtons();
+    buildCircleOfFifths();
     buildKeyboard();
   </script>
 </body>
