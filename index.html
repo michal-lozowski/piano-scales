@@ -329,6 +329,7 @@
     const GRID_ABOVE = 56; // overhang above keyboard (includes labels)
     const STEP_Y = 34;     // L-steps sit here — clear of the keyboard
     const GRID_INTO_CM = 0.5; // verticals stop this far into the keyboard
+    const TINY_L_PX = 9; // short horizontal jog for “tiny” L-steps
 
     // Semitone offsets from first tonic through the octave tonic (8 notes)
     const PATTERNS = {
@@ -604,27 +605,40 @@
         const letterIdx = (displayLetter0 + (i === 7 ? 0 : i)) % 7;
         const guideLetterIdx = (guideLetter0 + (i === 7 ? 0 : i)) % 7;
         let guideAbs = guideAbsForLetter(guideLetterIdx, targetAbs);
+        let tinyStep = false;
         if (i === 0) guideAbs = targetAbs;
         if (i === 6 && mode === "major" && root === 6) {
+          guideAbs = targetAbs;
+        }
+        // E♭ minor: F is natural — straight line
+        if (i === 1 && mode === "minor" && root === 3) {
           guideAbs = targetAbs;
         }
         // E♭ minor: C♭ sounds as B — straight line, not a C→B step
         if (i === 5 && mode === "minor" && root === 3) {
           guideAbs = targetAbs;
         }
+        // G♭ major octave tonic / E♭ minor G♭: short rightward L onto the black key
+        if (
+          (i === 7 && mode === "major" && root === 6) ||
+          (i === 2 && mode === "minor" && root === 3)
+        ) {
+          tinyStep = true;
+        }
         return {
           i,
           letter: LETTERS[letterIdx],
           targetAbs,
           guideAbs,
-          stepped: guideAbs !== targetAbs,
+          stepped: guideAbs !== targetAbs || tinyStep,
+          tinyStep,
         };
       });
 
       const targets = new Set(degrees.map((d) => d.targetAbs));
       return degrees.map((d) => ({
         ...d,
-        guideOccupied: d.stepped && targets.has(d.guideAbs),
+        guideOccupied: d.stepped && !d.tinyStep && targets.has(d.guideAbs),
       }));
     }
 
@@ -780,17 +794,26 @@
         const xGuide = xAtAbs(d.guideAbs);
         const xTarget = xAtAbs(d.targetAbs);
         if (xGuide == null || xTarget == null) continue;
-        guideXs.push(xGuide);
 
         if (!d.stepped) {
+          guideXs.push(xGuide);
           segs.push(`<line x1="${xGuide}" y1="${topY}" x2="${xGuide}" y2="${bottomY}" />`);
+        } else if (d.tinyStep) {
+          const dx = xTarget - xGuide;
+          const dir = dx === 0 ? 1 : Math.sign(dx);
+          const tiny = Math.min(TINY_L_PX, Math.abs(dx) || TINY_L_PX);
+          const xFrom = xTarget - dir * tiny;
+          guideXs.push(xFrom);
+          segs.push(
+            `<path d="M ${xFrom} ${topY} L ${xFrom} ${stepY} L ${xTarget} ${stepY} L ${xTarget} ${bottomY}" />`
+          );
         } else if (d.guideOccupied) {
-          // Guide key is another degree’s sounding note (G♭: B is both B♭’s
-          // seat and C♭). Jog along the top bar, vertical only on the target.
+          guideXs.push(xGuide);
           segs.push(
             `<path d="M ${xGuide} ${topY} L ${xTarget} ${topY} L ${xTarget} ${bottomY}" />`
           );
         } else {
+          guideXs.push(xGuide);
           segs.push(
             `<path d="M ${xGuide} ${topY} L ${xGuide} ${stepY} L ${xTarget} ${stepY} L ${xTarget} ${bottomY}" />`
           );
